@@ -424,6 +424,7 @@
 		3F6B89AE19EF40BA004E8EA8 /* libtightdb-ios.a */ = {isa = PBXFileReference; lastKnownFileType = archive.ar; name = "libtightdb-ios.a"; path = "../core/libtightdb-ios.a"; sourceTree = "<group>"; };
 		3F8DCA5719930F550008BD7F /* iOS Device Tests.xctest */ = {isa = PBXFileReference; explicitFileType = wrapper.cfbundle; includeInIndex = 0; path = "iOS Device Tests.xctest"; sourceTree = BUILT_PRODUCTS_DIR; };
 		3FE79FF719BA6A5900780C9A /* RLMSwiftSupport.h */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.h; path = RLMSwiftSupport.h; sourceTree = "<group>"; };
+		C0F7B0F21AB7955C008DA67F /* RLMNullability.h */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.h; path = RLMNullability.h; sourceTree = "<group>"; };
 		E81A1F621955FC9300FDED82 /* Realm-Info.plist */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = text.plist.xml; path = "Realm-Info.plist"; sourceTree = "<group>"; };
 		E81A1F631955FC9300FDED82 /* RLMAccessor.h */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.h; path = RLMAccessor.h; sourceTree = "<group>"; };
 		E81A1F641955FC9300FDED82 /* RLMAccessor.mm */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.cpp.objcpp; path = RLMAccessor.mm; sourceTree = "<group>"; };
@@ -710,6 +711,7 @@
 				3F20DA2119BE1EA6007DE308 /* RLMUpdateChecker.mm */,
 				E81A1F811955FC9300FDED82 /* RLMUtil.hpp */,
 				E81A1F821955FC9300FDED82 /* RLMUtil.mm */,
+				C0F7B0F21AB7955C008DA67F /* RLMNullability.h */,
 			);
 			path = Realm;
 			sourceTree = "<group>";
