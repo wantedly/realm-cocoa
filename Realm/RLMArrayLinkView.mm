@@ -111,7 +111,7 @@ static inline void RLMValidateObjectClass(__unsafe_unretained RLMObjectBase *con
     realm::Table &table = *_objectSchema.table;
     while (index < count && batchCount < len) {
         RLMObject *accessor = [[accessorClass alloc] initWithRealm:_realm schema:_objectSchema];
-        accessor->_row = table[_backingLinkView->get(index++).get_index()];
+        RLMSetRow(accessor, _objectSchema, _backingLinkView->get(index++).get_index(), table);
         items->array[batchCount] = accessor;
         buffer[batchCount] = accessor;
         batchCount++;

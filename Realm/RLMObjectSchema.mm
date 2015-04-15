@@ -311,9 +311,9 @@
 
 @end
 
-void RLMSetRow(RLMObjectBase *object, RLMObjectSchema *objectSchema, NSUInteger index) {
+void RLMSetRow(RLMObjectBase *object, RLMObjectSchema *objectSchema, NSUInteger index, realm::Table &table) {
     OSSpinLockLock(&objectSchema->_accessorLock);
-    object->_row = (*objectSchema.table)[index];
+    object->_row = table[index];
     OSSpinLockUnlock(&objectSchema->_accessorLock);
 }
 

@@ -36,7 +36,11 @@ namespace realm {
 
 @end
 
-void RLMSetRow(RLMObjectBase *object, RLMObjectSchema *objectSchema, NSUInteger index);
+void RLMSetRow(RLMObjectBase *object, RLMObjectSchema *objectSchema, NSUInteger index, realm::Table &table);
+
+static inline void RLMSetRow(RLMObjectBase *object, RLMObjectSchema *objectSchema, NSUInteger index) {
+    RLMSetRow(object, objectSchema, index, *objectSchema.table);
+}
 
 void RLMReleaseRow(RLMObjectBase *object, RLMObjectSchema *objectSchema);
 
