@@ -129,3 +129,6 @@ static inline realm::StringData RLMStringDataWithNSString(NSString *string) {
 static inline realm::BinaryData RLMBinaryDataForNSData(NSData *data) {
     return realm::BinaryData(static_cast<const char *>(data.bytes), data.length);
 }
+static inline NSData *RLMBinaryDataToNSData(realm::BinaryData data) {
+    return [[NSData alloc] initWithBytes:data.data() length:data.size()];
+}
