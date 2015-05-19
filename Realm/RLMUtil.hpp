@@ -27,22 +27,6 @@
 @class RLMRealm;
 @class RLMSchema;
 
-// Helper structs for unretained<> to make unretained<id> work
-template<typename T>
-struct RLMUnretainedPtr {
-    using type = __unsafe_unretained T *const;
-};
-
-template<>
-struct RLMUnretainedPtr<id> {
-    using type = __unsafe_unretained id const;
-};
-
-// type alias for const unretained pointers
-// only needs to be used in function/method definitions, not declarations
-template<typename T>
-using unretained = typename RLMUnretainedPtr<T>::type;
-
 NSException *RLMException(NSString *message, NSDictionary *userInfo = nil);
 NSException *RLMException(std::exception const& exception);
 
@@ -56,11 +40,11 @@ BOOL RLMIsObjectValidForProperty(id obj, RLMProperty *prop);
 // returns a validated object for an input object
 // creates new objects for child objects and array literals as necessary
 // throws if passed in literals are not compatible with prop
-id RLMValidatedObjectForProperty(id obj, RLMProperty *prop, RLMSchema *schema);
+id RLMValidatedObjectForProperty(id obj, RLMProperty *prop, RLMSchema *schema, RLMRealm *realm);
 
 // throws if the values in array are not valid for the given schema
 // returns array with allocated child objects
-NSArray *RLMValidatedArrayForObjectSchema(NSArray *array, RLMObjectSchema *objectSchema, RLMSchema *schema);
+NSArray *RLMValidatedArrayForObjectSchema(NSArray *array, RLMObjectSchema *objectSchema, RLMSchema *schema, RLMRealm *realm = nil);
 
 // gets default values for the given schema (+defaultPropertyValues)
 // merges with native property defaults if Swift class
@@ -70,11 +54,13 @@ NSDictionary *RLMDefaultValuesForObjectSchema(RLMObjectSchema *objectSchema);
 // inserts default values for missing properties when allowMissing is false
 // throws for missing properties when allowMissing is false
 // returns dictionary with default values and allocates child objects when applicable
-NSDictionary *RLMValidatedDictionaryForObjectSchema(id value, RLMObjectSchema *objectSchema, RLMSchema *schema, bool allowMissing = false);
+NSDictionary *RLMValidatedDictionaryForObjectSchema(id value, RLMObjectSchema *objectSchema, RLMSchema *schema, bool allowMissing = false, RLMRealm *realm = nil);
 
 NSArray *RLMCollectionValueForKey(NSString *key, RLMRealm *realm, RLMObjectSchema *objectSchema, size_t count, size_t (^indexGenerator)(size_t index));
 
 void RLMCollectionSetValueForKey(id value, NSString *key, RLMRealm *realm, RLMObjectSchema *objectSchema, size_t count, size_t (^indexGenerator)(size_t index));
+
+BOOL RLMIsDebuggerAttached();
 
 // C version of isKindOfClass
 static inline BOOL RLMIsKindOfClass(Class class1, Class class2) {

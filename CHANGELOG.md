@@ -1,4 +1,70 @@
-x.xx.x Release notes (yyyy-MM-dd)
+0.92.3 Release notes (2015-05-13)
+=============================================================
+
+### API breaking changes
+
+* Swift: `Results.average(_:)` now returns an optional, which is `nil` if and only if the results
+  set is empty.
+
+### Enhancements
+
+* Swift: Added `List.invalidated`, which returns if the given `List` is no longer
+  safe to be accessed, and is analogous to `-[RLMArray isInvalidated]`.
+* Assertion messages are automatically logged to Crashlytics if it's loaded
+  into the current process to make it easier to diagnose crashes.
+
+### Bugfixes
+
+* Swift: Enumerating through a standalone `List` whose objects themselves
+  have list properties won't crash.
+* Swift: Using a subclass of `RealmSwift.Object` in an aggregate operator of a predicate
+  no longer throws a spurious type error.
+* Fix incorrect results for when using OR in a query on a `RLMArray`/`List<>`.
+* Fix incorrect values from `[RLMResults count]`/`Results.count` when using
+  `!=` on an int property with no other query conditions.
+* Lower the maximum doubling threshold for Realm file sizes from 128MB to 16MB
+  to reduce the amount of wasted space.
+
+0.92.2 Release notes (2015-05-08)
+=============================================================
+
+### API breaking changes
+
+* None.
+
+### Enhancements
+
+* Exceptions raised when incorrect object types are used with predicates now contain more detailed information.
+* Added `-[RLMMigration deleteDataForClassName:]` and `Migration.deleteData(_:)` 
+  to enable cleaning up after removing object subclasses
+
+### Bugfixes
+
+* Prevent debugging of an application using an encrypted Realm to work around
+  frequent LLDB hangs. Until the underlying issue is addressed you may set
+  REALM_DISABLE_ENCRYPTION=YES in your application's environment variables to
+  have requests to open an encrypted Realm treated as a request for an
+  unencrypted Realm.
+* Linked objects are properly updated in `createOrUpdateInRealm:withValue:`.
+* List properties on Objects are now properly initialized during fast enumeration.
+
+0.92.1 Release notes (2015-05-06)
+=============================================================
+
+### API breaking changes
+
+* None.
+
+### Enhancements
+
+* `-[RLMRealm inWriteTransaction]` is now public.
+* Realm Swift is now available on CoocaPods.
+
+### Bugfixes
+
+* Force code re-signing after stripping architectures in `strip-frameworks.sh`.
+
+0.92.0 Release notes (2015-05-05)
 =============================================================
 
 ### API breaking changes
@@ -19,7 +85,7 @@ x.xx.x Release notes (yyyy-MM-dd)
 
 * `Int8` properties defined in Swift are now treated as integers, rather than
   booleans.
-* NSPredicates created using +predicateWithValue: are now supported.
+* NSPredicates created using `+predicateWithValue:` are now supported.
 
 ### Bugfixes
 

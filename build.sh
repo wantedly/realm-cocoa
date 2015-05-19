@@ -14,7 +14,7 @@ set -o pipefail
 set -e
 
 # You can override the version of the core library
-: ${REALM_CORE_VERSION:=0.89.1} # set to "current" to always use the current build
+: ${REALM_CORE_VERSION:=0.89.3} # set to "current" to always use the current build
 
 # You can override the xcmode used
 : ${XCMODE:=xcodebuild} # must be one of: xcodebuild (default), xcpretty, xctool
@@ -25,6 +25,8 @@ if ! [ -z "${JENKINS_HOME}" ]; then
     XCPRETTY_PARAMS="--no-utf --report junit --output build/reports/junit.xml"
     CODESIGN_PARAMS="CODE_SIGN_IDENTITY= CODE_SIGNING_REQUIRED=NO"
 fi
+
+export REALM_SKIP_DEBUGGER_CHECKS=YES
 
 usage() {
 cat <<EOF
@@ -521,17 +523,19 @@ case "$COMMAND" in
     "cocoapods-setup")
         sh build.sh download-core
 
-        # CocoaPods seems to not like symlinks
-        mv core tmp
-        mv $(readlink tmp) core
-        rm tmp
+        # CocoaPods doesn't support symlinks
+        if [ -L core ]; then
+            mv core core-tmp
+            mv $(readlink core-tmp) core
+            rm core-tmp
+        fi
 
         # CocoaPods doesn't support multiple header_mappings_dir, so combine
         # both sets of headers into a single directory
         rm -rf include
-        mv core/include include
+        cp -R core/include include
         mkdir -p include/Realm
-        cp Realm/*.h include/Realm
+        cp Realm/*.{h,hpp} include/Realm
         touch include/Realm/RLMPlatform.h
         ;;
 
