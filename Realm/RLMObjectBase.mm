@@ -30,62 +30,46 @@
 
 @interface RLMObjectBase () {
     @public
-    RLMObservable *_observable;
+    std::unique_ptr<RLMObservationInfo2> _observationInfo;
 }
 @end
 
-@implementation RLMObservable {
-    RLMRealm *_realm;
-    RLMObjectSchema *_objectSchema;
-}
-- (instancetype)initWithRow:(realm::Row const&)row realm:(RLMRealm *)realm schema:(RLMObjectSchema *)objectSchema {
-    self = [super init];
-    if (self) {
-        NSAssert(row, @"row should be attached");
-        NSAssert(row.get_table(), @"row should be attached");
-        _row = row;
-        _realm = realm;
-        _objectSchema = objectSchema;
-    }
-    return self;
-}
-
-- (id)valueForKey:(NSString *)key {
-    if ([key isEqualToString:@"invalidated"]) {
-        return @(!_row.is_attached());
-    }
-    else if (!_row.is_attached() || _returnNil) {
-        return nil;
-    }
-
-    id value = RLMDynamicGet(_realm, _row, _objectSchema[key]);
-    // get the observable preemptively for the case of the middle of an observed
-    // keypath being deleted, as we won't be able to get it after the change
-    // is made (there may be multiple detached Rows and we don't know which one
-    // to pick).
-    // FIXME: probably also for RLMArrayLinkView
-    if (auto obj = RLMDynamicCast<RLMObjectBase>(value)) {
-        for (__unsafe_unretained RLMObservable *o : obj->_objectSchema->_observers) {
-            if (o->_row && o->_row.get_index() == obj->_row.get_index()) {
-                obj->_observable = o;
-                break;
-            }
-        }
-    }
-    return value;
-}
-
-- (void)dealloc {
-    auto &observers = _objectSchema->_observers;
-    for (auto it = observers.begin(), end = observers.end(); it != end; ++it) {
-        if (*it == self) {
-            iter_swap(it, prev(end));
-            observers.pop_back();
+RLMObservationInfo2::RLMObservationInfo2(RLMObjectSchema *objectSchema, std::size_t row, id object)
+: row((*objectSchema.table)[row])
+, object(object)
+, objectSchema(objectSchema)
+{
+    for (auto info : objectSchema->_observedObjects) {
+        if (info->row.get_index() == row) {
+            prev = info;
+            next = info->next;
+            info->next = this;
             return;
         }
     }
+    objectSchema->_observedObjects.push_back(this);
 }
-@end
+
+RLMObservationInfo2::~RLMObservationInfo2() {
+    if (prev) {
+        prev->next = next;
+        if (next)
+            next->prev = prev;
+    }
+    else {
+        for (auto it = objectSchema->_observedObjects.begin(), end = objectSchema->_observedObjects.end(); it != end; ++it) {
+            if (*it == this) {
+                if (next)
+                    *it = next;
+                else {
+                    iter_swap(it, std::prev(end));
+                    objectSchema->_observedObjects.pop_back();
+                }
+                return;
+            }
+        }
+    }
+}
 
 const NSUInteger RLMDescriptionMaxDepth = 5;
 
@@ -114,6 +98,31 @@ const NSUInteger RLMDescriptionMaxDepth = 5;
     }
 
     return self;
+}
+
+- (void)dealloc {
+#if 0
+    if (!_nextObservable) {
+        return;
+    }
+
+    for (auto it = _objectSchema->_observedObjects.begin(), end = _objectSchema->_observedObjects.end(); it != end; ++it) {
+        if (*it == self) {
+            if (_nextObservable == self) {
+                iter_swap(it, prev(end));
+                _objectSchema->_observedObjects.pop_back();
+                return;
+            }
+            *it = _nextObservable;
+            break;
+        }
+    }
+
+    auto next = _nextObservable;
+    while (next->_nextObservable != self)
+        next = next->_nextObservable;
+    next->_nextObservable = _nextObservable;
+#endif
 }
 
 static id RLMValidatedObjectForProperty(id obj, RLMProperty *prop, RLMSchema *schema) {
@@ -282,82 +291,38 @@ static id RLMValidatedObjectForProperty(id obj, RLMProperty *prop, RLMSchema *sc
     return [super mutableArrayValueForKey:key];
 }
 
-static NSString *propertyKeyPath(NSString *keyPath, RLMObjectSchema *objectSchema) {
-    if ([keyPath isEqualToString:@"invalidated"])
-        return keyPath;
-
-    NSUInteger sep = [keyPath rangeOfString:@"."].location;
-    NSString *key = sep == NSNotFound ? keyPath : [keyPath substringToIndex:sep];
-    RLMProperty *prop = objectSchema[key];
-    return prop ? keyPath : nil;
-}
-
-static RLMObservable *getObservable(RLMObjectBase *obj) {
-    if (obj->_observable) {
-        return obj->_observable;
-    }
-
-    for (__unsafe_unretained RLMObservable *o : obj->_objectSchema->_observers) {
-        if (o->_row && o->_row.get_index() == obj->_row.get_index()) {
-            obj->_observable = o;
-            return o;
-        }
-    }
-
-    RLMObservable *observable = [[RLMObservable alloc] initWithRow:obj->_row realm:obj->_realm schema:obj->_objectSchema];
-    obj->_objectSchema->_observers.push_back(observable);
-    obj->_observable = observable;
-    return observable;
-}
-
 - (void)addObserver:(id)observer
          forKeyPath:(NSString *)keyPath
             options:(NSKeyValueObservingOptions)options
             context:(void *)context {
-    NSString *key = propertyKeyPath(keyPath, _objectSchema);
-    if (!key) {
-        [super addObserver:observer forKeyPath:keyPath options:options context:context];
-        return;
+    if (!_observationInfo) {
+        _observationInfo = std::make_unique<RLMObservationInfo2>(_objectSchema, _row.get_index(), self);
     }
 
-    RLMObservable *observable = getObservable(self);
-    [observable addObserver:observer forKeyPath:key options:options context:context];
-    // "Using a __bridge_retained or __bridge_transfer cast purely to convince ARC to emit an unbalanced retain or release, respectively, is poor form."
-    (void)(__bridge_retained CFDataRef)observable;
+    [super addObserver:observer forKeyPath:keyPath options:options context:context];
 }
 
-- (void)removeObserver:(NSObject *)observer forKeyPath:(NSString *)keyPath {
-    NSString *key = propertyKeyPath(keyPath, _objectSchema);
-    if (key) {
-        RLMObservable *observable = getObservable(self);
-        [observable removeObserver:observer forKeyPath:key];
-        (void)(__bridge_transfer id)(__bridge void *)observable;
-    }
-    else {
-        [super removeObserver:observer forKeyPath:keyPath];
-    }
+- (void *)observationInfo {
+    return _observationInfo ? _observationInfo->kvoInfo : nullptr;
 }
 
-- (void)removeObserver:(NSObject *)observer forKeyPath:(NSString *)keyPath context:(void *)context {
-    NSString *key = propertyKeyPath(keyPath, _objectSchema);
-    if (key) {
-        RLMObservable *observable = getObservable(self);
-        [observable removeObserver:observer forKeyPath:key context:context];
-        (void)(__bridge_transfer id)(__bridge void *)observable;
-    }
-    else {
-        [super removeObserver:observer forKeyPath:keyPath context:context];
-    }
+- (void)setObservationInfo:(void *)observationInfo {
+    _observationInfo->kvoInfo = observationInfo;
 }
 
 @end
 
-void RLMWillChange(RLMObjectBase *obj, NSString *key) {
-    [getObservable(obj) willChangeValueForKey:key];
-}
-
-void RLMDidChange(RLMObjectBase *obj, NSString *key) {
-    [getObservable(obj) didChangeValueForKey:key];
+void RLMForEachObserver(RLMObjectBase *obj, void (^block)(RLMObjectBase*)) {
+    RLMObservationInfo2 *info = obj->_observationInfo.get();
+    if (!info) {
+        for (RLMObservationInfo2 *o : obj->_objectSchema->_observedObjects) {
+            if (obj->_row.get_index() == o->row.get_index()) {
+                info = o;
+                break;
+            }
+        }
+    }
+    for_each(info, block);
 }
 
 @implementation RLMObservationInfo
@@ -568,6 +533,9 @@ void RLMOverrideStandaloneMethods(Class cls) {
 }
 
 void RLMTrackDeletions(__unsafe_unretained RLMRealm *const realm, dispatch_block_t block) {
+    block();
+    return;
+#if 0
     struct change {
         __unsafe_unretained RLMObservable *observable;
         __unsafe_unretained NSString *property;
@@ -651,4 +619,5 @@ void RLMTrackDeletions(__unsafe_unretained RLMRealm *const realm, dispatch_block
     }
 
     realm.group->notify_thing = nullptr;
+#endif
 }

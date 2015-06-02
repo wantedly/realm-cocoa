@@ -433,9 +433,10 @@ static IMP RLMMakeSetter(RLMProperty *prop) {
         });
     }
     return imp_implementationWithBlock(^(__unsafe_unretained RLMObjectBase *const obj, ArgType val) {
-        RLMWillChange(obj, name);
+        // needs non-allocating erasure
+        RLMForEachObserver(obj, ^(RLMObjectBase *o) { [o willChangeValueForKey:name]; });
         RLMSetValue(obj, colIndex, static_cast<StorageType>(val));
-        RLMDidChange(obj, name);
+        RLMForEachObserver(obj, ^(RLMObjectBase *o) { [o didChangeValueForKey:name]; });
     });
 }
 

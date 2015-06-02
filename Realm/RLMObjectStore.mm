@@ -706,24 +706,24 @@ void RLMDeleteObjectFromRealm(__unsafe_unretained RLMObjectBase *const object,
 }
 
 void RLMClearTable(RLMObjectSchema *objectSchema) {
-    for (auto observer : objectSchema->_observers) {
-        [observer willChangeValueForKey:@"invalidated"];
-        for (RLMProperty *prop in objectSchema.properties)
-            [observer willChangeValueForKey:prop.name];
+    for (auto info : objectSchema->_observedObjects) {
+        for_each(info, [](__unsafe_unretained auto o) { [o willChangeValueForKey:@"invalidated"]; });
+//        for (RLMProperty *prop in objectSchema.properties)
+//            [observed willChangeValueForKey:prop.name];
     }
 
     RLMTrackDeletions(objectSchema.realm, ^{
         objectSchema.table->clear();
     });
 
-    for (auto observer : objectSchema->_observers) {
-        [observer didChangeValueForKey:@"invalidated"];
-        observer->_returnNil = true;
-        for (RLMProperty *prop in objectSchema.properties)
-            [observer didChangeValueForKey:prop.name];
+    for (auto info : objectSchema->_observedObjects) {
+        for_each(info, [](__unsafe_unretained auto o) { [o didChangeValueForKey:@"invalidated"]; });
+//        observer->_returnNil = true;
+//        for (RLMProperty *prop in objectSchema.properties)
+//            [observer didChangeValueForKey:prop.name];
     }
 
-    objectSchema->_observers.clear();
+//    objectSchema->_observers.clear();
 }
 
 void RLMDeleteAllObjectsFromRealm(RLMRealm *realm) {

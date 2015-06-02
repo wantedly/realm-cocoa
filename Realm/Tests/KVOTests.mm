@@ -544,7 +544,7 @@ public:
         [mutator addObject:obj];
         r.refresh();
         XCTAssertEqual(1U, r.notifications.size());
-        r.notifications.pop_back();
+//        r.notifications.pop_back();
     }
 }
 

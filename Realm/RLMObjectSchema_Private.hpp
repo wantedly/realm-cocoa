@@ -28,12 +28,10 @@ namespace realm {
     typedef BasicTableRef<Table> TableRef;
 }
 
-@class RLMObservable;
-
 // RLMObjectSchema private
 @interface RLMObjectSchema () {
     @public
-    std::vector<__unsafe_unretained RLMObservable *> _observers;
+    std::vector<RLMObservationInfo2 *> _observedObjects;
 }
 @property (nonatomic) realm::Table *table;
 

@@ -35,7 +35,7 @@
     realm::LinkViewRef _backingLinkView;
     RLMRealm *_realm;
     __unsafe_unretained RLMObjectSchema *_objectSchema;
-    RLMObservable *_observable;
+    std::unique_ptr<RLMObservationInfo2> _observable;
 }
 
 + (RLMArrayLinkView *)arrayWithObjectClassName:(NSString *)objectClassName
@@ -77,36 +77,31 @@ static inline void RLMValidateObjectClass(__unsafe_unretained RLMObjectBase *con
     }
 }
 
-static RLMObservable *getObservable(__unsafe_unretained RLMArrayLinkView *const ar, bool create = false) {
+static const RLMObservationInfo2 *getObservable(__unsafe_unretained RLMArrayLinkView *const ar, bool create = false) {
     if (ar->_observable) {
-        return ar->_observable;
+        return ar->_observable.get();
     }
 
-    for (__unsafe_unretained RLMObservable *o : ar->_objectSchema->_observers) {
-        if (o->_row && o->_row.get_index() == ar->_backingLinkView->get_origin_row_index()) {
-            ar->_observable = o;
-            return o;
+    for (const RLMObservationInfo2 *info : ar->_objectSchema->_observedObjects) {
+        if (info->row.get_index() == ar->_backingLinkView->get_origin_row_index()) {
+            return info;
         }
     }
 
     if (create) {
-        RLMObservable *observable = [[RLMObservable alloc] initWithRow:(*ar->_objectSchema.table)[ar->_backingLinkView->get_origin_row_index()]
-                                                                 realm:ar->_realm
-                                                                schema:ar->_objectSchema];
-        ar->_objectSchema->_observers.push_back(observable);
-        ar->_observable = observable;
-        return observable;
+        ar->_observable = std::make_unique<RLMObservationInfo2>(ar->_objectSchema, ar->_backingLinkView->get_origin_row_index(), ar);
+        return ar->_observable.get();
     }
 
-    return nil;
+    return nullptr;
 }
 
 static void changeArray(__unsafe_unretained RLMArrayLinkView *const ar, NSKeyValueChange kind, NSUInteger index, dispatch_block_t f) {
-    if (RLMObservable *o = getObservable(ar)) {
+    if (auto o = getObservable(ar)) {
         NSIndexSet *is = [NSIndexSet indexSetWithIndex:index];
-        [o willChange:kind valuesAtIndexes:is forKey:ar->_key];
+        for_each(o, [&](__unsafe_unretained id const o) { [o willChange:kind valuesAtIndexes:is forKey:ar->_key]; });
         f();
-        [o didChange:kind valuesAtIndexes:is forKey:ar->_key];
+        for_each(o, [&](__unsafe_unretained id const o) { [o didChange:kind valuesAtIndexes:is forKey:ar->_key]; });
     }
     else {
         f();
@@ -114,11 +109,11 @@ static void changeArray(__unsafe_unretained RLMArrayLinkView *const ar, NSKeyVal
 }
 
 static void changeArray(__unsafe_unretained RLMArrayLinkView *const ar, NSKeyValueChange kind, NSRange range, dispatch_block_t f) {
-    if (RLMObservable *o = getObservable(ar)) {
+    if (auto o = getObservable(ar)) {
         NSIndexSet *is = [NSIndexSet indexSetWithIndexesInRange:range];
-        [o willChange:kind valuesAtIndexes:is forKey:ar->_key];
+        for_each(o, [&](__unsafe_unretained id const o) { [o willChange:kind valuesAtIndexes:is forKey:ar->_key]; });
         f();
-        [o didChange:kind valuesAtIndexes:is forKey:ar->_key];
+        for_each(o, [&](__unsafe_unretained id const o) { [o didChange:kind valuesAtIndexes:is forKey:ar->_key]; });
     }
     else {
         f();
@@ -126,10 +121,10 @@ static void changeArray(__unsafe_unretained RLMArrayLinkView *const ar, NSKeyVal
 }
 
 static void changeArray(__unsafe_unretained RLMArrayLinkView *const ar, NSKeyValueChange kind, NSIndexSet *is, dispatch_block_t f) {
-    if (RLMObservable *o = getObservable(ar)) {
-        [o willChange:kind valuesAtIndexes:is forKey:ar->_key];
+    if (auto o = getObservable(ar)) {
+        for_each(o, [&](__unsafe_unretained id const o) { [o willChange:kind valuesAtIndexes:is forKey:ar->_key]; });
         f();
-        [o didChange:kind valuesAtIndexes:is forKey:ar->_key];
+        for_each(o, [&](__unsafe_unretained id const o) { [o didChange:kind valuesAtIndexes:is forKey:ar->_key]; });
     }
     else {
         f();
@@ -404,37 +399,10 @@ static void changeArray(__unsafe_unretained RLMArrayLinkView *const ar, NSKeyVal
          forKeyPath:(NSString *)keyPath
             options:(NSKeyValueObservingOptions)options
             context:(void *)context {
-    if (![keyPath isEqualToString:@"invalidated"]) {
-        [super addObserver:observer forKeyPath:keyPath options:options context:context];
+    if (!_observable && [keyPath isEqualToString:@"invalidated"]) {
+        _observable = std::make_unique<RLMObservationInfo2>(_objectSchema, _backingLinkView->get_origin_row_index(), self);
     }
-    else {
-        RLMObservable *observable = getObservable(self, true);
-        [observable addObserver:observer forKeyPath:keyPath options:options context:context];
-        // "Using a __bridge_retained or __bridge_transfer cast purely to convince ARC to emit an unbalanced retain or release, respectively, is poor form."
-        (void)(__bridge_retained CFDataRef)observable;
-    }
-}
-
-- (void)removeObserver:(NSObject *)observer forKeyPath:(NSString *)keyPath {
-    if ([keyPath isEqualToString:@"invalidated"]) {
-        RLMObservable *observable = getObservable(self);
-        [observable removeObserver:observer forKeyPath:keyPath];
-        (void)(__bridge_transfer id)(__bridge void *)observable;
-    }
-    else {
-        [super removeObserver:observer forKeyPath:keyPath];
-    }
-}
-
-- (void)removeObserver:(NSObject *)observer forKeyPath:(NSString *)keyPath context:(void *)context {
-    if ([keyPath isEqualToString:@"invalidated"]) {
-        RLMObservable *observable = getObservable(self);
-        [observable removeObserver:observer forKeyPath:keyPath context:context];
-        (void)(__bridge_transfer id)(__bridge void *)observable;
-    }
-    else {
-        [super removeObserver:observer forKeyPath:keyPath context:context];
-    }
+    [super addObserver:observer forKeyPath:keyPath options:options context:context];
 }
 
 @end

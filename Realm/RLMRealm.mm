@@ -664,6 +664,7 @@ static void CheckReadWrite(RLMRealm *realm, NSString *msg=@"Cannot write to a re
     [_notifier stop];
 }
 
+#if 0
 struct ObserverState {
     size_t table;
     size_t row;
@@ -889,9 +890,12 @@ private:
         return true;
     }
 };
+#endif
 
 template<typename Func>
 static void call_with_notifications(SharedGroup *sg, RLMSchema *schema, Func&& func) {
+    func(*sg);
+#if 0
     std::vector<ObserverState> observers;
     // all this should maybe be precomputed or cached or something
     for (RLMObjectSchema *objectSchema in schema.objectSchema) {
@@ -932,6 +936,7 @@ static void call_with_notifications(SharedGroup *sg, RLMSchema *schema, Func&& f
                      valuesAtIndexes:o.linkviewChangeIndexes
                               forKey:o.key];
     }
+#endif
 }
 
 static void advance_notify(SharedGroup *sg, RLMSchema *schema) {
